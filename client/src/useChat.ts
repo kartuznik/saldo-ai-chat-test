@@ -2,6 +2,12 @@ import { useCallback, useRef, useState } from "react";
 
 export type ChatRole = "user" | "assistant";
 export type ChatStatus = "idle" | "streaming" | "error";
+export type ChatErrorKind =
+  | "rate_limit"
+  | "upstream_timeout"
+  | "upstream_error"
+  | "network"
+  | "interrupted";
 
 export type ChatMessage = {
   id: string;
@@ -27,36 +33,38 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
+function kindFromHttp(status: number, errorCode: string | undefined): ChatErrorKind {
+  if (status === 429 || errorCode === "rate_limit") {
+    return "rate_limit";
+  }
+  if (status === 504 || errorCode === "upstream_timeout") {
+    return "upstream_timeout";
+  }
+  return "upstream_error";
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatus>("idle");
+  const [errorKind, setErrorKind] = useState<ChatErrorKind | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
 
-  const send = useCallback(async (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || abortRef.current) {
+  const complete = useCallback(async (history: ChatMessage[]) => {
+    if (abortRef.current) {
       return;
     }
-
-    const userMsg: ChatMessage = { id: newId(), role: "user", content: trimmed };
-    const assistantMsg: ChatMessage = {
-      id: newId(),
-      role: "assistant",
-      content: "",
-    };
-    const history = [...messagesRef.current, userMsg];
-    setMessages([...history, assistantMsg]);
     setStatus("streaming");
+    setErrorKind(null);
 
     const controller = new AbortController();
     abortRef.current = controller;
+    let assistantOpened = false;
 
-    const payload = history.map((message) => ({
-      role: message.role,
-      content: message.content,
-    }));
+    const payload = history
+      .filter((message) => message.content.length > 0)
+      .map((message) => ({ role: message.role, content: message.content }));
 
     try {
       const response = await fetch(`${API_BASE}/api/chat`, {
@@ -66,11 +74,32 @@ export function useChat() {
         signal: controller.signal,
       });
 
-      if (!response.ok || !response.body) {
-        abortRef.current = null;
-        setStatus("idle");
+      if (!response.ok) {
+        let errorCode: string | undefined;
+        try {
+          const body = (await response.json()) as { error?: string };
+          errorCode = body.error;
+        } catch {
+          errorCode = undefined;
+        }
+        setErrorKind(kindFromHttp(response.status, errorCode));
+        setStatus("error");
         return;
       }
+
+      if (!response.body) {
+        setErrorKind("upstream_error");
+        setStatus("error");
+        return;
+      }
+
+      const assistantMsg: ChatMessage = {
+        id: newId(),
+        role: "assistant",
+        content: "",
+      };
+      setMessages([...history, assistantMsg]);
+      assistantOpened = true;
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -120,29 +149,65 @@ export function useChat() {
         }
       }
 
-      abortRef.current = null;
-      setStatus("idle");
+      if (sawDone) {
+        setStatus("idle");
+      } else {
+        setErrorKind("interrupted");
+        setStatus("error");
+      }
     } catch (error) {
-      abortRef.current = null;
       if (isAbortError(error)) {
-        setMessages((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last?.role === "assistant") {
-            next[next.length - 1] = { ...last, stopped: true };
-          }
-          return next;
-        });
+        if (assistantOpened) {
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant") {
+              next[next.length - 1] = { ...last, stopped: true };
+            }
+            return next;
+          });
+        }
+        setErrorKind(null);
         setStatus("idle");
         return;
       }
-      throw error;
+      setErrorKind("network");
+      setStatus("error");
+    } finally {
+      abortRef.current = null;
     }
   }, []);
+
+  const send = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || abortRef.current) {
+        return;
+      }
+      const userMsg: ChatMessage = { id: newId(), role: "user", content: trimmed };
+      const history = [...messagesRef.current, userMsg];
+      setMessages(history);
+      await complete(history);
+    },
+    [complete],
+  );
+
+  const retry = useCallback(async () => {
+    if (abortRef.current) {
+      return;
+    }
+    const lastUser = [...messagesRef.current]
+      .reverse()
+      .find((message) => message.role === "user");
+    if (!lastUser) {
+      return;
+    }
+    await complete(messagesRef.current);
+  }, [complete]);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
-  return { messages, status, send, stop };
+  return { messages, status, errorKind, send, stop, retry };
 }

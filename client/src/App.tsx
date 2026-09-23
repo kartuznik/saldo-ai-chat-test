@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { useChat } from "./useChat.ts";
+import { useChat, type ChatErrorKind } from "./useChat.ts";
+
+const ERROR_TEXT: Record<ChatErrorKind, string> = {
+  rate_limit: "лимит запросов, подождите и повторите",
+  upstream_timeout: "таймаут модели",
+  upstream_error: "ошибка модели",
+  network: "сеть оборвалась",
+  interrupted: "генерация прервана",
+};
 
 const EXAMPLES = [
   "Объясни простыми словами, что такое SSE",
@@ -8,7 +16,7 @@ const EXAMPLES = [
 ];
 
 export default function App() {
-  const { messages, status, send, stop } = useChat();
+  const { messages, status, errorKind, send, stop, retry } = useChat();
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +87,14 @@ export default function App() {
           ))
         )}
         {typing ? <p>модель печатает</p> : null}
+        {status === "error" && errorKind ? (
+          <div role="alert">
+            <p>{ERROR_TEXT[errorKind]}</p>
+            <button type="button" onClick={() => void retry()}>
+              Повторить
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <form onSubmit={onSubmit}>
