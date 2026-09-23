@@ -90,10 +90,35 @@ async def chat(body: ChatRequest) -> StreamingResponse | JSONResponse:
     upstream_req = client.build_request(
         "POST", OPENROUTER_URL, json=payload, headers=headers
     )
-    upstream = await client.send(upstream_req, stream=True)
+    try:
+        upstream = await client.send(upstream_req, stream=True)
+    except httpx.TimeoutException:
+        log.error("upstream timeout before stream started")
+        return JSONResponse(
+            {"error": "upstream_timeout", "message": "OpenRouter timed out"},
+            status_code=504,
+        )
+    except httpx.RequestError as exc:
+        log.error("upstream request failed: %s", type(exc).__name__)
+        return JSONResponse(
+            {"error": "upstream_error", "message": "OpenRouter request failed"},
+            status_code=502,
+        )
 
     if upstream.status_code != 200:
+        status = upstream.status_code
+        retry_after = upstream.headers.get("Retry-After")
         await upstream.aclose()
+        log.error("upstream status=%s", status)
+        if status == 429:
+            response_headers = {}
+            if retry_after:
+                response_headers["Retry-After"] = retry_after
+            return JSONResponse(
+                {"error": "rate_limit", "message": "OpenRouter rate limit"},
+                status_code=429,
+                headers=response_headers,
+            )
         return JSONResponse(
             {"error": "upstream_error", "message": "OpenRouter request failed"},
             status_code=502,
@@ -108,6 +133,10 @@ async def chat(body: ChatRequest) -> StreamingResponse | JSONResponse:
                     yield f"{line}\n\n"
                     if line[6:].strip() == "[DONE]":
                         break
+        except httpx.TimeoutException:
+            log.error("upstream timeout during stream")
+        except httpx.HTTPError as exc:
+            log.error("upstream stream error: %s", type(exc).__name__)
         finally:
             await upstream.aclose()
 
