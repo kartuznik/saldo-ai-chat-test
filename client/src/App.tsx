@@ -8,13 +8,23 @@ const EXAMPLES = [
 ];
 
 export default function App() {
-  const { messages, status, send } = useChat();
+  const { messages, status, send, stop } = useChat();
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [messages, status]);
+
+  useEffect(() => {
+    function onDocumentKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape" && status === "streaming") {
+        stop();
+      }
+    }
+    document.addEventListener("keydown", onDocumentKeyDown);
+    return () => document.removeEventListener("keydown", onDocumentKeyDown);
+  }, [status, stop]);
 
   function submitDraft() {
     const text = draft.trim();
@@ -64,6 +74,7 @@ export default function App() {
           messages.map((message) => (
             <article key={message.id} data-role={message.role}>
               <p>{message.content}</p>
+              {message.stopped ? <p>остановлено</p> : null}
             </article>
           ))
         )}
@@ -83,9 +94,15 @@ export default function App() {
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
         />
-        <button type="submit" disabled={status === "streaming" || !draft.trim()}>
-          Отправить
-        </button>
+        {status === "streaming" ? (
+          <button type="button" onClick={stop}>
+            Стоп
+          </button>
+        ) : (
+          <button type="submit" disabled={!draft.trim()}>
+            Отправить
+          </button>
+        )}
       </form>
     </main>
   );

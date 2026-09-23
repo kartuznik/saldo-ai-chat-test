@@ -7,6 +7,7 @@ export type ChatMessage = {
   id: string;
   role: ChatRole;
   content: string;
+  stopped?: boolean;
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
@@ -20,6 +21,10 @@ function parseContentDelta(data: string): string {
     choices?: { delta?: { content?: string } }[];
   };
   return parsed.choices?.[0]?.delta?.content ?? "";
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 export function useChat() {
@@ -53,70 +58,91 @@ export function useChat() {
       content: message.content,
     }));
 
-    const response = await fetch(`${API_BASE}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: payload }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok || !response.body) {
-      abortRef.current = null;
-      setStatus("idle");
-      return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let sawDone = false;
-
-    const appendDelta = (piece: string) => {
-      setMessages((prev) => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        if (last?.role === "assistant") {
-          next[next.length - 1] = { ...last, content: last.content + piece };
-        }
-        return next;
+    try {
+      const response = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: payload }),
+        signal: controller.signal,
       });
-    };
 
-    while (!sawDone) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
+      if (!response.ok || !response.body) {
+        abortRef.current = null;
+        setStatus("idle");
+        return;
       }
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const raw of lines) {
-        const line = raw.trim();
-        if (!line || line.startsWith(":")) {
-          continue;
-        }
-        if (!line.startsWith("data:")) {
-          continue;
-        }
-        const data = line.slice("data:".length).trimStart();
-        if (data === "[DONE]") {
-          sawDone = true;
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let sawDone = false;
+
+      const appendDelta = (piece: string) => {
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last?.role === "assistant") {
+            next[next.length - 1] = { ...last, content: last.content + piece };
+          }
+          return next;
+        });
+      };
+
+      while (!sawDone) {
+        const { done, value } = await reader.read();
+        if (done) {
           break;
         }
-        try {
-          const piece = parseContentDelta(data);
-          if (piece) {
-            appendDelta(piece);
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const raw of lines) {
+          const line = raw.trim();
+          if (!line || line.startsWith(":")) {
+            continue;
           }
-        } catch {
-          // Non-JSON data line; skip.
+          if (!line.startsWith("data:")) {
+            continue;
+          }
+          const data = line.slice("data:".length).trimStart();
+          if (data === "[DONE]") {
+            sawDone = true;
+            break;
+          }
+          try {
+            const piece = parseContentDelta(data);
+            if (piece) {
+              appendDelta(piece);
+            }
+          } catch {
+            // Non-JSON data line; skip.
+          }
         }
       }
-    }
 
-    abortRef.current = null;
-    setStatus("idle");
+      abortRef.current = null;
+      setStatus("idle");
+    } catch (error) {
+      abortRef.current = null;
+      if (isAbortError(error)) {
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last?.role === "assistant") {
+            next[next.length - 1] = { ...last, stopped: true };
+          }
+          return next;
+        });
+        setStatus("idle");
+        return;
+      }
+      throw error;
+    }
   }, []);
 
-  return { messages, status, send };
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  return { messages, status, send, stop };
 }
