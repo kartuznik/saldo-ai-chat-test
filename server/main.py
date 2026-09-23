@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_HISTORY = 30
-ALLOWED_ORIGIN = "http://localhost:5173"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -64,7 +63,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[ALLOWED_ORIGIN],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
