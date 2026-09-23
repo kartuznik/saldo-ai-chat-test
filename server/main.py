@@ -1,4 +1,4 @@
-"""FastAPI proxy to OpenRouter. Chat streaming is added in later commits."""
+"""FastAPI proxy to OpenRouter. Streams chat completions as SSE."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -76,6 +76,47 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/api/chat")
-async def chat(body: ChatRequest) -> JSONResponse:
-    del body
-    return JSONResponse({"error": "not_implemented"}, status_code=501)
+async def chat(body: ChatRequest) -> StreamingResponse | JSONResponse:
+    client: httpx.AsyncClient = app.state.http
+    payload = {
+        "model": MODEL,
+        "messages": [message.model_dump() for message in body.messages[-MAX_HISTORY:]],
+        "stream": True,
+    }
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    }
+    upstream_req = client.build_request(
+        "POST", OPENROUTER_URL, json=payload, headers=headers
+    )
+    upstream = await client.send(upstream_req, stream=True)
+
+    if upstream.status_code != 200:
+        await upstream.aclose()
+        return JSONResponse(
+            {"error": "upstream_error", "message": "OpenRouter request failed"},
+            status_code=502,
+        )
+
+    async def generate():
+        try:
+            async for line in upstream.aiter_lines():
+                if not line or line.startswith(":"):
+                    continue
+                if line.startswith("data: "):
+                    yield f"{line}\n\n"
+                    if line[6:].strip() == "[DONE]":
+                        break
+        finally:
+            await upstream.aclose()
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
