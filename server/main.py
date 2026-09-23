@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import sys
@@ -11,7 +12,7 @@ from typing import Literal
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -76,7 +77,7 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/api/chat")
-async def chat(body: ChatRequest) -> StreamingResponse | JSONResponse:
+async def chat(body: ChatRequest, request: Request) -> StreamingResponse | JSONResponse:
     client: httpx.AsyncClient = app.state.http
     payload = {
         "model": MODEL,
@@ -127,12 +128,18 @@ async def chat(body: ChatRequest) -> StreamingResponse | JSONResponse:
     async def generate():
         try:
             async for line in upstream.aiter_lines():
+                if await request.is_disconnected():
+                    log.info("upstream cancelled: client disconnected")
+                    break
                 if not line or line.startswith(":"):
                     continue
                 if line.startswith("data: "):
                     yield f"{line}\n\n"
                     if line[6:].strip() == "[DONE]":
                         break
+        except asyncio.CancelledError:
+            log.info("upstream cancelled: client disconnected")
+            raise
         except httpx.TimeoutException:
             log.error("upstream timeout during stream")
         except httpx.HTTPError as exc:
