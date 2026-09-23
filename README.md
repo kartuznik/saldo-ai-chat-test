@@ -36,6 +36,7 @@ curl -N http://127.0.0.1:8000/api/chat \
 - Qwen | дал плейсхолдер noreply-email (12345678+) в примере команды | владелец сверил с настройками GitHub до отправки | подставлен реальный 277530346+kartuznik@users.noreply.github.com.
 - cursor move_agent_to_root | InstantiationService has been disposed, workspace не переключился на /root/saldo-ai-chat-test | ответ инструмента, повтор дал ту же ошибку | работу продолжили по абсолютным путям, третью попытку не делали
 - Owner | сохранил server/.env не в ту папку и не заметил этого в проводнике Cursor | агент остановил приёмку: файла нет на диске, ls подтвердил | файл перемещён в server/, проверено ls -la и git status | вывод: файл существует только после сохранения в верный путь, верим командам, а не проводнику.
+- fastapi | аннотация `StreamingResponse | JSONResponse` валит старт FastAPIError | traceback uvicorn при первом запуске | убрали return annotation у `/api/chat`
 
 ## Если бы был ещё один день
 

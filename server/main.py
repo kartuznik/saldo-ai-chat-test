@@ -77,7 +77,7 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/api/chat")
-async def chat(body: ChatRequest, request: Request) -> StreamingResponse | JSONResponse:
+async def chat(body: ChatRequest, request: Request):
     client: httpx.AsyncClient = app.state.http
     payload = {
         "model": MODEL,
