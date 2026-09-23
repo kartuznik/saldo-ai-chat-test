@@ -59,24 +59,28 @@ export default function App() {
   const typing = status === "streaming" && last?.role === "assistant" && last.content === "";
 
   return (
-    <main>
-      <header>
+    <main className="shell">
+      <header className="top">
         <h1>Сальдо</h1>
         {messages.length > 0 ? (
-          <button type="button" onClick={clearHistory}>
+          <button type="button" className="btn" onClick={clearHistory}>
             Очистить историю
           </button>
         ) : null}
       </header>
 
-      <div ref={logRef} role="log" aria-live="polite">
+      <div ref={logRef} className="log" role="log" aria-live="polite">
         {messages.length === 0 ? (
-          <div>
+          <div className="empty">
             <p>Привет. Напиши вопрос или выбери пример.</p>
-            <ul>
+            <ul className="chips">
               {EXAMPLES.map((example) => (
                 <li key={example}>
-                  <button type="button" onClick={() => setDraft(example)}>
+                  <button
+                    type="button"
+                    className="btn chip"
+                    onClick={() => setDraft(example)}
+                  >
                     {example}
                   </button>
                 </li>
@@ -85,24 +89,24 @@ export default function App() {
           </div>
         ) : (
           messages.map((message) => (
-            <article key={message.id} data-role={message.role}>
-              <p>{message.content}</p>
-              {message.stopped ? <p>остановлено</p> : null}
+            <article key={message.id} className="bubble" data-role={message.role}>
+              <p className="bubble-body">{message.content}</p>
+              {message.stopped ? <p className="stopped">остановлено</p> : null}
             </article>
           ))
         )}
-        {typing ? <p>модель печатает</p> : null}
+        {typing ? <p className="typing">модель печатает</p> : null}
         {status === "error" && errorKind ? (
-          <div role="alert">
+          <div className="alert" role="alert">
             <p>{ERROR_TEXT[errorKind]}</p>
-            <button type="button" onClick={() => void retry()}>
+            <button type="button" className="btn btn-accent" onClick={() => void retry()}>
               Повторить
             </button>
           </div>
         ) : null}
       </div>
 
-      <form onSubmit={onSubmit}>
+      <form className="composer" onSubmit={onSubmit}>
         <label htmlFor="chat-input" className="visually-hidden">
           Сообщение
         </label>
@@ -116,11 +120,11 @@ export default function App() {
           onKeyDown={onKeyDown}
         />
         {status === "streaming" ? (
-          <button type="button" onClick={stop}>
+          <button type="button" className="btn btn-warn" onClick={stop}>
             Стоп
           </button>
         ) : (
-          <button type="submit" disabled={!draft.trim()}>
+          <button type="submit" className="btn btn-accent" disabled={!draft.trim()}>
             Отправить
           </button>
         )}
