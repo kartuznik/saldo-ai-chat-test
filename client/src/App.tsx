@@ -16,7 +16,7 @@ const EXAMPLES = [
 ];
 
 export default function App() {
-  const { messages, status, errorKind, send, stop, retry } = useChat();
+  const { messages, status, errorKind, send, stop, retry, clearHistory } = useChat();
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +62,11 @@ export default function App() {
     <main>
       <header>
         <h1>Сальдо</h1>
+        {messages.length > 0 ? (
+          <button type="button" onClick={clearHistory}>
+            Очистить историю
+          </button>
+        ) : null}
       </header>
 
       <div ref={logRef} role="log" aria-live="polite">

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ChatRole = "user" | "assistant";
 export type ChatStatus = "idle" | "streaming" | "error";
@@ -17,6 +17,7 @@ export type ChatMessage = {
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
+const STORAGE_KEY = "saldo.chat.messages";
 
 function newId(): string {
   return crypto.randomUUID();
@@ -33,6 +34,42 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
+function loadHistory(): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    const messages: ChatMessage[] = [];
+    for (const item of parsed) {
+      if (
+        item &&
+        typeof item === "object" &&
+        "id" in item &&
+        "role" in item &&
+        "content" in item &&
+        typeof item.id === "string" &&
+        (item.role === "user" || item.role === "assistant") &&
+        typeof item.content === "string"
+      ) {
+        messages.push({
+          id: item.id,
+          role: item.role,
+          content: item.content,
+          stopped: "stopped" in item && item.stopped === true,
+        });
+      }
+    }
+    return messages;
+  } catch {
+    return [];
+  }
+}
+
 function kindFromHttp(status: number, errorCode: string | undefined): ChatErrorKind {
   if (status === 429 || errorCode === "rate_limit") {
     return "rate_limit";
@@ -44,12 +81,16 @@ function kindFromHttp(status: number, errorCode: string | undefined): ChatErrorK
 }
 
 export function useChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(loadHistory);
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [errorKind, setErrorKind] = useState<ChatErrorKind | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  }, [messages]);
 
   const complete = useCallback(async (history: ChatMessage[]) => {
     if (abortRef.current) {
@@ -209,5 +250,12 @@ export function useChat() {
     abortRef.current?.abort();
   }, []);
 
-  return { messages, status, errorKind, send, stop, retry };
+  const clearHistory = useCallback(() => {
+    abortRef.current?.abort();
+    setMessages([]);
+    setErrorKind(null);
+    setStatus("idle");
+  }, []);
+
+  return { messages, status, errorKind, send, stop, retry, clearHistory };
 }
