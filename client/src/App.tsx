@@ -87,7 +87,7 @@ export default function App() {
       return;
     }
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [messages, status]);
+  }, [messages, status, waitingForToken]);
 
   useEffect(() => {
     function onDocumentKeyDown(event: globalThis.KeyboardEvent) {
@@ -122,6 +122,12 @@ export default function App() {
     }
   }
 
+  function onRetry() {
+    stickToBottomRef.current = true;
+    setShowJump(false);
+    void retry();
+  }
+
   return (
     <main className="shell">
       <header className="channel">
@@ -153,15 +159,14 @@ export default function App() {
         <div ref={logRef} className="log" role="log" aria-live="polite" onScroll={onLogScroll}>
         {messages.length === 0 ? (
           <div className="empty">
-            <p>Привет. Напиши вопрос или выбери пример.</p>
+            <section className="empty-card">
+              <p className="empty-title">Привет</p>
+              <p>Напиши вопрос или выбери пример.</p>
+            </section>
             <ul className="chips">
               {EXAMPLES.map((example) => (
                 <li key={example}>
-                  <button
-                    type="button"
-                    className="btn chip"
-                    onClick={() => setDraft(example)}
-                  >
+                  <button type="button" className="chip-card" onClick={() => setDraft(example)}>
                     {example}
                   </button>
                 </li>
@@ -195,22 +200,54 @@ export default function App() {
               </article>
           ))
         )}
+        {waitingForToken ? (
+          <div className="typing-row">
+            <KuzmaMark className="avatar" />
+            <span className="typing-dots" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+            <span className="visually-hidden">модель печатает</span>
+          </div>
+        ) : null}
         {status === "error" && errorKind ? (
-          <div className="alert" role="alert">
-            <p>{ERROR_TEXT[errorKind]}</p>
-            <button type="button" className="btn btn-accent" onClick={() => {
-              stickToBottomRef.current = true;
-              setShowJump(false);
-              void retry();
-            }}>
+          <div className="state-card state-card-error" role="alert">
+            <svg className="state-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M12 3.2 22 20.8H2L12 3.2Zm0 5.3c-.4 0-.7.3-.7.8l.4 5.2h.6l.4-5.2c0-.5-.3-.8-.7-.8Zm0 8.3a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8Z"
+              />
+            </svg>
+            <div className="state-copy">
+              <p className="state-title">Ошибка</p>
+              <p>{ERROR_TEXT[errorKind]}</p>
+            </div>
+            <button type="button" className="btn btn-accent" onClick={onRetry}>
               Повторить
             </button>
           </div>
         ) : null}
-        </div>
-        {waitingForToken ? (
-          <p className="typing-pill">модель печатает</p>
+        {status !== "streaming" &&
+        status !== "error" &&
+        messages[messages.length - 1]?.stopped ? (
+          <div className="state-card state-card-stop">
+            <svg className="state-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M8.2 3.2h7.6L20.8 8.2v7.6l-5 5H8.2l-5-5V8.2l5-5ZM9 9v6h6V9H9Z"
+              />
+            </svg>
+            <div className="state-copy">
+              <p className="state-title">Генерация остановлена</p>
+              <p>Часть ответа сохранена в истории</p>
+            </div>
+            <button type="button" className="btn" onClick={onRetry}>
+              Продолжить
+            </button>
+          </div>
         ) : null}
+        </div>
         {showJump ? (
           <button type="button" className="jump-btn" onClick={followLog}>
             ↓ к новому
