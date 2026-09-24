@@ -38,7 +38,8 @@ function isNearBottom(el: HTMLElement): boolean {
 }
 
 export default function App() {
-  const { messages, status, errorKind, waitingForToken, send, stop, retry, clearHistory } = useChat();
+  const { messages, status, errorKind, waitingForToken, send, stop, retry, continueLast, clearHistory } =
+    useChat();
   const [draft, setDraft] = useState("");
   const [model, setModel] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -126,6 +127,12 @@ export default function App() {
     stickToBottomRef.current = true;
     setShowJump(false);
     void retry();
+  }
+
+  function onContinue() {
+    stickToBottomRef.current = true;
+    setShowJump(false);
+    void continueLast();
   }
 
   return (
@@ -228,9 +235,7 @@ export default function App() {
             </button>
           </div>
         ) : null}
-        {status !== "streaming" &&
-        status !== "error" &&
-        messages[messages.length - 1]?.stopped ? (
+        {status !== "error" && messages[messages.length - 1]?.stopped ? (
           <div className="state-card state-card-stop">
             <svg className="state-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path
@@ -242,7 +247,12 @@ export default function App() {
               <p className="state-title">Генерация остановлена</p>
               <p>Часть ответа сохранена в истории</p>
             </div>
-            <button type="button" className="btn" onClick={onRetry}>
+            <button
+              type="button"
+              className="btn"
+              onClick={onContinue}
+              disabled={status === "streaming"}
+            >
               Продолжить
             </button>
           </div>

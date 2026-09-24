@@ -19,6 +19,12 @@ export type ChatMessage = {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 const STORAGE_KEY = "saldo.chat.messages";
+const CONTINUE_PROMPT =
+  "продолжи оборванный ответ ровно с места, где он закончился, без повтора уже написанного";
+
+type CompleteOpts = {
+  appendToLastAssistant?: boolean;
+};
 
 function newId(): string {
   return crypto.randomUUID();
@@ -102,7 +108,7 @@ export function useChat() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
 
-  const complete = useCallback(async (history: ChatMessage[]) => {
+  const complete = useCallback(async (history: ChatMessage[], opts?: CompleteOpts) => {
     if (abortRef.current) {
       return;
     }
@@ -113,10 +119,11 @@ export function useChat() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    const appendToLast = opts?.appendToLastAssistant === true;
     const payload = history
       .filter((message) => message.content.length > 0)
       .map((message) => ({ role: message.role, content: message.content }));
-    const assistantOpened = { current: false };
+    const assistantOpened = { current: appendToLast };
 
     try {
       const response = await fetch(`${API_BASE}/api/chat`, {
@@ -155,6 +162,12 @@ export function useChat() {
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
+          if (appendToLast) {
+            if (last?.role === "assistant") {
+              next[next.length - 1] = { ...last, content: last.content + piece };
+            }
+            return next;
+          }
           if (assistantOpened.current && last?.role === "assistant") {
             next[next.length - 1] = { ...last, content: last.content + piece };
             return next;
@@ -209,6 +222,16 @@ export function useChat() {
       }
 
       if (sawDone) {
+        if (appendToLast) {
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant" && last.stopped) {
+              next[next.length - 1] = { ...last, stopped: false };
+            }
+            return next;
+          });
+        }
         setStatus("idle");
       } else {
         setErrorKind("interrupted");
@@ -269,6 +292,23 @@ export function useChat() {
     await complete(current.slice(0, lastUserIdx + 1));
   }, [complete]);
 
+  const continueLast = useCallback(async () => {
+    if (abortRef.current) {
+      return;
+    }
+    const current = messagesRef.current;
+    const last = current[current.length - 1];
+    if (last?.role !== "assistant" || !last.stopped || !last.content) {
+      return;
+    }
+    const serviceUser: ChatMessage = {
+      id: newId(),
+      role: "user",
+      content: CONTINUE_PROMPT,
+    };
+    await complete([...current, serviceUser], { appendToLastAssistant: true });
+  }, [complete]);
+
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
@@ -280,5 +320,15 @@ export function useChat() {
     setStatus("idle");
   }, []);
 
-  return { messages, status, errorKind, waitingForToken, send, stop, retry, clearHistory };
+  return {
+    messages,
+    status,
+    errorKind,
+    waitingForToken,
+    send,
+    stop,
+    retry,
+    continueLast,
+    clearHistory,
+  };
 }
