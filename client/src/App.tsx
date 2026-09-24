@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { KuzmaMark, OwnerSilhouette } from "./avatars.tsx";
 import { useChat, type ChatErrorKind } from "./useChat.ts";
 
 function assistantHtml(content: string): string {
@@ -118,7 +119,9 @@ export default function App() {
     <main className="shell">
       <header className="channel">
         <div className="channel-id">
-          <span className="avatar-slot" aria-hidden="true" />
+          <span className="avatar-slot">
+            <KuzmaMark className="avatar" />
+          </span>
           <div className="channel-copy">
             <h1>Кузьма</h1>
             <p className="online">
@@ -160,16 +163,23 @@ export default function App() {
           </div>
         ) : (
           messages.map((message) => (
-              <article key={message.id} className="bubble" data-role={message.role}>
+              <article key={message.id} className="msg" data-role={message.role}>
                 {message.role === "assistant" ? (
-                  <div
-                    className="bubble-body markdown"
-                    dangerouslySetInnerHTML={{ __html: assistantHtml(message.content) }}
-                  />
+                  <KuzmaMark className="avatar" />
                 ) : (
-                  <p className="bubble-body">{message.content}</p>
+                  <OwnerSilhouette className="avatar" />
                 )}
-                {message.stopped ? <p className="stopped">остановлено</p> : null}
+                <div className="bubble">
+                  {message.role === "assistant" ? (
+                    <div
+                      className="bubble-body markdown"
+                      dangerouslySetInnerHTML={{ __html: assistantHtml(message.content) }}
+                    />
+                  ) : (
+                    <p className="bubble-body">{message.content}</p>
+                  )}
+                  {message.stopped ? <p className="stopped">остановлено</p> : null}
+                </div>
               </article>
           ))
         )}

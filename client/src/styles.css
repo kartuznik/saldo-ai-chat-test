@@ -86,11 +86,22 @@ textarea:focus-visible {
 }
 
 .avatar-slot {
+  display: flex;
   width: var(--touch);
   height: var(--touch);
   flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--bg);
+}
+
+.avatar {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+}
+
+.avatar-slot .avatar {
+  width: var(--touch);
+  height: var(--touch);
 }
 
 .channel-copy {
@@ -248,15 +259,31 @@ h1 {
   text-align: left;
 }
 
-.bubble {
+.msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
   max-width: 100%;
+}
+
+.msg[data-role="assistant"] {
+  align-self: flex-start;
+}
+
+.msg[data-role="user"] {
+  flex-direction: row-reverse;
+  align-self: flex-end;
+}
+
+.bubble {
+  min-width: 0;
+  max-width: calc(100% - 2.5rem);
   padding: 0.75rem;
   border-radius: var(--radius);
   background: var(--surface);
 }
 
-.bubble[data-role="user"] {
-  align-self: flex-end;
+.msg[data-role="user"] .bubble {
   border: 1px solid var(--accent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
 }
