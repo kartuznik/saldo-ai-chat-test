@@ -139,7 +139,7 @@ export function useChat() {
         role: "assistant",
         content: "",
       };
-      setMessages([...history, assistantMsg]);
+      setMessages((prev) => [...prev, assistantMsg]);
       assistantOpened = true;
 
       const reader = response.body.getReader();
@@ -248,13 +248,12 @@ export function useChat() {
     if (abortRef.current) {
       return;
     }
-    const lastUser = [...messagesRef.current]
-      .reverse()
-      .find((message) => message.role === "user");
-    if (!lastUser) {
+    const current = messagesRef.current;
+    const lastUserIdx = current.findLastIndex((message) => message.role === "user");
+    if (lastUserIdx < 0) {
       return;
     }
-    await complete(messagesRef.current);
+    await complete(current.slice(0, lastUserIdx + 1));
   }, [complete]);
 
   const stop = useCallback(() => {
