@@ -27,6 +27,8 @@ const NEAR_BOTTOM_PX = 40;
 function isNearBottom(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
 }
+
+export default function App() {
   const { messages, status, errorKind, waitingForToken, send, stop, retry, clearHistory } = useChat();
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
