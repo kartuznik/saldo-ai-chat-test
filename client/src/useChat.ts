@@ -158,34 +158,45 @@ export function useChat() {
         });
       };
 
+      const consumeLine = (raw: string): boolean => {
+        const line = raw.trim();
+        if (!line || line.startsWith(":")) {
+          return false;
+        }
+        if (!line.startsWith("data:")) {
+          return false;
+        }
+        const data = line.slice("data:".length).trimStart();
+        if (data === "[DONE]") {
+          return true;
+        }
+        try {
+          const piece = parseContentDelta(data);
+          if (piece) {
+            appendDelta(piece);
+          }
+        } catch {
+          // Non-JSON data line; skip.
+        }
+        return false;
+      };
+
       while (!sawDone) {
         const { done, value } = await reader.read();
         if (done) {
+          buffer += decoder.decode();
+          if (buffer && consumeLine(buffer)) {
+            sawDone = true;
+          }
           break;
         }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
         for (const raw of lines) {
-          const line = raw.trim();
-          if (!line || line.startsWith(":")) {
-            continue;
-          }
-          if (!line.startsWith("data:")) {
-            continue;
-          }
-          const data = line.slice("data:".length).trimStart();
-          if (data === "[DONE]") {
+          if (consumeLine(raw)) {
             sawDone = true;
             break;
-          }
-          try {
-            const piece = parseContentDelta(data);
-            if (piece) {
-              appendDelta(piece);
-            }
-          } catch {
-            // Non-JSON data line; skip.
           }
         }
       }

@@ -92,6 +92,9 @@ async def chat(body: ChatRequest, request: Request):
     )
     try:
         upstream = await client.send(upstream_req, stream=True)
+    except asyncio.CancelledError:
+        log.info("upstream cancelled: client disconnected")
+        raise
     except httpx.TimeoutException:
         log.error("upstream timeout before stream started")
         return JSONResponse(
