@@ -22,12 +22,37 @@ const EXAMPLES = [
   "Переведи на английский: история чата хранится локально",
 ];
 
-export default function App() {
+const NEAR_BOTTOM_PX = 40;
+
+function isNearBottom(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+}
   const { messages, status, errorKind, send, stop, retry, clearHistory } = useChat();
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
+
+  function followLog() {
+    stickToBottomRef.current = true;
+    setShowJump(false);
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+  }
+
+  function onLogScroll() {
+    const el = logRef.current;
+    if (!el) {
+      return;
+    }
+    const near = isNearBottom(el);
+    stickToBottomRef.current = near;
+    setShowJump(!near && status === "streaming");
+  }
 
   useEffect(() => {
+    if (!stickToBottomRef.current) {
+      return;
+    }
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [messages, status]);
 
@@ -47,6 +72,8 @@ export default function App() {
       return;
     }
     setDraft("");
+    stickToBottomRef.current = true;
+    setShowJump(false);
     void send(text);
   }
 
@@ -76,7 +103,8 @@ export default function App() {
         ) : null}
       </header>
 
-      <div ref={logRef} className="log" role="log" aria-live="polite">
+      <div className="log-wrap">
+        <div ref={logRef} className="log" role="log" aria-live="polite" onScroll={onLogScroll}>
         {messages.length === 0 ? (
           <div className="empty">
             <p>Привет. Напиши вопрос или выбери пример.</p>
@@ -118,10 +146,20 @@ export default function App() {
         {status === "error" && errorKind ? (
           <div className="alert" role="alert">
             <p>{ERROR_TEXT[errorKind]}</p>
-            <button type="button" className="btn btn-accent" onClick={() => void retry()}>
+            <button type="button" className="btn btn-accent" onClick={() => {
+              stickToBottomRef.current = true;
+              setShowJump(false);
+              void retry();
+            }}>
               Повторить
             </button>
           </div>
+        ) : null}
+        </div>
+        {showJump ? (
+          <button type="button" className="jump-btn" onClick={followLog}>
+            ↓ к новому
+          </button>
         ) : null}
       </div>
 
