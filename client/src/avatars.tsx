@@ -18,11 +18,11 @@ export function KuzmaMark({ className }: AvatarProps) {
       <defs>
         <linearGradient id={ring} x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="var(--accent)" />
-          <stop offset="100%" stopColor="color-mix(in srgb, var(--accent) 35%, var(--bg))" />
+          <stop offset="100%" stopColor="var(--accent-2)" />
         </linearGradient>
         <linearGradient id={mark} x1="20" y1="6" x2="20" y2="32" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="var(--accent)" />
-          <stop offset="100%" stopColor="color-mix(in srgb, var(--accent) 45%, var(--warn))" />
+          <stop offset="100%" stopColor="var(--accent-2)" />
         </linearGradient>
       </defs>
       <circle cx="20" cy="20" r="19" fill="var(--bg)" stroke={`url(#${ring})`} strokeWidth="2" />
@@ -61,8 +61,8 @@ export function OwnerSilhouette({ className }: AvatarProps) {
       </defs>
       <g clipPath={`url(#${clip})`}>
         <circle cx="20" cy="20" r="20" fill="var(--surface)" />
-        <ellipse cx="20" cy="14.5" rx="7.4" ry="8.6" fill="var(--accent)" />
-        <ellipse cx="20" cy="36.5" rx="14.5" ry="11.5" fill="var(--accent)" />
+        <ellipse cx="20" cy="14.5" rx="7.4" ry="8.6" fill="var(--accent-2)" />
+        <ellipse cx="20" cy="36.5" rx="14.5" ry="11.5" fill="var(--accent-2)" />
       </g>
     </svg>
   );
