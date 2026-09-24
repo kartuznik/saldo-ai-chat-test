@@ -88,12 +88,17 @@ export default function App() {
             </ul>
           </div>
         ) : (
-          messages.map((message) => (
-            <article key={message.id} className="bubble" data-role={message.role}>
-              <p className="bubble-body">{message.content}</p>
-              {message.stopped ? <p className="stopped">остановлено</p> : null}
-            </article>
-          ))
+          messages.map((message) => {
+            if (message.role === "assistant" && !message.content && !message.stopped) {
+              return null;
+            }
+            return (
+              <article key={message.id} className="bubble" data-role={message.role}>
+                <p className="bubble-body">{message.content}</p>
+                {message.stopped ? <p className="stopped">остановлено</p> : null}
+              </article>
+            );
+          })
         )}
         {typing ? <p className="typing">модель печатает</p> : null}
         {status === "error" && errorKind ? (
