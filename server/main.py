@@ -72,7 +72,7 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "model": MODEL}
 
 
 @app.post("/api/chat")
