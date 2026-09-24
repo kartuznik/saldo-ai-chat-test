@@ -84,6 +84,7 @@ export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>(loadHistory);
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [errorKind, setErrorKind] = useState<ChatErrorKind | null>(null);
+  const [waitingForToken, setWaitingForToken] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
@@ -98,14 +99,15 @@ export function useChat() {
     }
     setStatus("streaming");
     setErrorKind(null);
+    setWaitingForToken(true);
 
     const controller = new AbortController();
     abortRef.current = controller;
-    let assistantOpened = false;
 
     const payload = history
       .filter((message) => message.content.length > 0)
       .map((message) => ({ role: message.role, content: message.content }));
+    const assistantOpened = { current: false };
 
     try {
       const response = await fetch(`${API_BASE}/api/chat`, {
@@ -134,26 +136,22 @@ export function useChat() {
         return;
       }
 
-      const assistantMsg: ChatMessage = {
-        id: newId(),
-        role: "assistant",
-        content: "",
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-      assistantOpened = true;
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       let sawDone = false;
 
       const appendDelta = (piece: string) => {
+        setWaitingForToken(false);
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
-          if (last?.role === "assistant") {
+          if (assistantOpened.current && last?.role === "assistant") {
             next[next.length - 1] = { ...last, content: last.content + piece };
+            return next;
           }
+          assistantOpened.current = true;
+          next.push({ id: newId(), role: "assistant", content: piece });
           return next;
         });
       };
@@ -209,7 +207,7 @@ export function useChat() {
       }
     } catch (error) {
       if (isAbortError(error)) {
-        if (assistantOpened) {
+        if (assistantOpened.current) {
           setMessages((prev) => {
             const next = [...prev];
             const last = next[next.length - 1];
@@ -226,6 +224,7 @@ export function useChat() {
       setErrorKind("network");
       setStatus("error");
     } finally {
+      setWaitingForToken(false);
       abortRef.current = null;
     }
   }, []);
@@ -267,5 +266,5 @@ export function useChat() {
     setStatus("idle");
   }, []);
 
-  return { messages, status, errorKind, send, stop, retry, clearHistory };
+  return { messages, status, errorKind, waitingForToken, send, stop, retry, clearHistory };
 }

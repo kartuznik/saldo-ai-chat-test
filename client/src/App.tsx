@@ -27,7 +27,7 @@ const NEAR_BOTTOM_PX = 40;
 function isNearBottom(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
 }
-  const { messages, status, errorKind, send, stop, retry, clearHistory } = useChat();
+  const { messages, status, errorKind, waitingForToken, send, stop, retry, clearHistory } = useChat();
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -89,9 +89,6 @@ function isNearBottom(el: HTMLElement): boolean {
     }
   }
 
-  const last = messages[messages.length - 1];
-  const typing = status === "streaming" && last?.role === "assistant" && last.content === "";
-
   return (
     <main className="shell">
       <header className="top">
@@ -123,11 +120,7 @@ function isNearBottom(el: HTMLElement): boolean {
             </ul>
           </div>
         ) : (
-          messages.map((message) => {
-            if (message.role === "assistant" && !message.content && !message.stopped) {
-              return null;
-            }
-            return (
+          messages.map((message) => (
               <article key={message.id} className="bubble" data-role={message.role}>
                 {message.role === "assistant" ? (
                   <div
@@ -139,10 +132,8 @@ function isNearBottom(el: HTMLElement): boolean {
                 )}
                 {message.stopped ? <p className="stopped">остановлено</p> : null}
               </article>
-            );
-          })
+          ))
         )}
-        {typing ? <p className="typing">модель печатает</p> : null}
         {status === "error" && errorKind ? (
           <div className="alert" role="alert">
             <p>{ERROR_TEXT[errorKind]}</p>
@@ -156,6 +147,9 @@ function isNearBottom(el: HTMLElement): boolean {
           </div>
         ) : null}
         </div>
+        {waitingForToken ? (
+          <p className="typing-pill">модель печатает</p>
+        ) : null}
         {showJump ? (
           <button type="button" className="jump-btn" onClick={followLog}>
             ↓ к новому
