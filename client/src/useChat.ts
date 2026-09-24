@@ -14,6 +14,7 @@ export type ChatMessage = {
   role: ChatRole;
   content: string;
   stopped?: boolean;
+  createdAt?: number;
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
@@ -56,12 +57,20 @@ function loadHistory(): ChatMessage[] {
         (item.role === "user" || item.role === "assistant") &&
         typeof item.content === "string"
       ) {
-        messages.push({
+        const message: ChatMessage = {
           id: item.id,
           role: item.role,
           content: item.content,
           stopped: "stopped" in item && item.stopped === true,
-        });
+        };
+        if (
+          "createdAt" in item &&
+          typeof item.createdAt === "number" &&
+          Number.isFinite(item.createdAt)
+        ) {
+          message.createdAt = item.createdAt;
+        }
+        messages.push(message);
       }
     }
     return messages;
@@ -151,7 +160,7 @@ export function useChat() {
             return next;
           }
           assistantOpened.current = true;
-          next.push({ id: newId(), role: "assistant", content: piece });
+          next.push({ id: newId(), role: "assistant", content: piece, createdAt: Date.now() });
           return next;
         });
       };
@@ -235,7 +244,12 @@ export function useChat() {
       if (!trimmed || abortRef.current) {
         return;
       }
-      const userMsg: ChatMessage = { id: newId(), role: "user", content: trimmed };
+      const userMsg: ChatMessage = {
+        id: newId(),
+        role: "user",
+        content: trimmed,
+        createdAt: Date.now(),
+      };
       const history = [...messagesRef.current, userMsg];
       setMessages(history);
       await complete(history);

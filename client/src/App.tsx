@@ -26,6 +26,13 @@ const EXAMPLES = [
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 const NEAR_BOTTOM_PX = 40;
 
+function formatTime(createdAt: number): string {
+  const date = new Date(createdAt);
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
 function isNearBottom(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
 }
@@ -179,6 +186,11 @@ export default function App() {
                     <p className="bubble-body">{message.content}</p>
                   )}
                   {message.stopped ? <p className="stopped">остановлено</p> : null}
+                  {typeof message.createdAt === "number" ? (
+                    <time className="stamp" dateTime={new Date(message.createdAt).toISOString()}>
+                      {formatTime(message.createdAt)}
+                    </time>
+                  ) : null}
                 </div>
               </article>
           ))
