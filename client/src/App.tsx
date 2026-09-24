@@ -236,8 +236,14 @@ export default function App() {
             Стоп
           </button>
         ) : (
-          <button type="submit" className="btn btn-accent" disabled={!draft.trim()}>
-            Отправить
+          <button type="submit" className="send-btn" aria-label="Отправить" disabled={!draft.trim()}>
+            <svg className="send-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                fill="currentColor"
+                d="M3.05 11.25 20.7 3.2c.72-.33 1.45.4 1.12 1.12L13.75 20.95c-.3.64-1.22.58-1.42-.1l-1.7-5.95-5.95-1.7c-.68-.2-.74-1.12-.1-1.42Z"
+              />
+            </svg>
+            <span className="send-label">Отправить</span>
           </button>
         )}
       </form>
