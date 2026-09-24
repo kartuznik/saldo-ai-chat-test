@@ -1,5 +1,12 @@
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useChat, type ChatErrorKind } from "./useChat.ts";
+
+function assistantHtml(content: string): string {
+  const raw = marked.parse(content, { async: false, gfm: true, breaks: true }) as string;
+  return DOMPurify.sanitize(raw);
+}
 
 const ERROR_TEXT: Record<ChatErrorKind, string> = {
   rate_limit: "лимит запросов, подождите и повторите",
@@ -94,7 +101,14 @@ export default function App() {
             }
             return (
               <article key={message.id} className="bubble" data-role={message.role}>
-                <p className="bubble-body">{message.content}</p>
+                {message.role === "assistant" ? (
+                  <div
+                    className="bubble-body markdown"
+                    dangerouslySetInnerHTML={{ __html: assistantHtml(message.content) }}
+                  />
+                ) : (
+                  <p className="bubble-body">{message.content}</p>
+                )}
                 {message.stopped ? <p className="stopped">остановлено</p> : null}
               </article>
             );
