@@ -22,6 +22,7 @@ const EXAMPLES = [
   "Переведи на английский: история чата хранится локально",
 ];
 
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 const NEAR_BOTTOM_PX = 40;
 
 function isNearBottom(el: HTMLElement): boolean {
@@ -31,9 +32,31 @@ function isNearBottom(el: HTMLElement): boolean {
 export default function App() {
   const { messages, status, errorKind, waitingForToken, send, stop, retry, clearHistory } = useChat();
   const [draft, setDraft] = useState("");
+  const [model, setModel] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const [showJump, setShowJump] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE}/api/health`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: unknown) => {
+        if (cancelled || !body || typeof body !== "object" || !("model" in body)) {
+          return;
+        }
+        const name = body.model;
+        if (typeof name === "string" && name.trim()) {
+          setModel(name.trim());
+        }
+      })
+      .catch(() => {
+        /* header stays without the model tag */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function followLog() {
     stickToBottomRef.current = true;
@@ -93,8 +116,22 @@ export default function App() {
 
   return (
     <main className="shell">
-      <header className="top">
-        <h1>Сальдо</h1>
+      <header className="channel">
+        <div className="channel-id">
+          <span className="avatar-slot" aria-hidden="true" />
+          <div className="channel-copy">
+            <h1>Кузьма</h1>
+            <p className="online">
+              <span className="online-dot" />
+              онлайн
+            </p>
+          </div>
+        </div>
+        {model ? (
+          <p className="model-tag" title={model}>
+            {model}
+          </p>
+        ) : null}
         {messages.length > 0 ? (
           <button type="button" className="btn" onClick={clearHistory}>
             Очистить историю
